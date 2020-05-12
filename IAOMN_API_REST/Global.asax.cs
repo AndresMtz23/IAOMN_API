@@ -16,8 +16,7 @@ namespace IAOMN_API_REST
         {
             // Código que se ejecuta al iniciar la aplicación
             AreaRegistration.RegisterAllAreas();
-            GlobalConfiguration.Configure(WebApiConfig.Register);
-            RouteConfig.RegisterRoutes(RouteTable.Routes);            
+            GlobalConfiguration.Configure(WebApiConfig.Register);         
         }
     }
 }
