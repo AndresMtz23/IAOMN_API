@@ -223,10 +223,6 @@ namespace IAOMN_API_REST.Controllers
             string MDX_QUERY = WITH + @"SELECT " + COLUMNS + ROWS + " FROM " + CUBO_NAME;
 
             Debug.Write(MDX_QUERY);
-
-            List<decimal> ventas1 = new List<decimal>();
-            List<decimal> ventas2 = new List<decimal>();
-            List<decimal> ventas3 = new List<decimal>();
             List<string> anio = new List<string>();
             List<dynamic> lstTabla = new List<dynamic>();
 
@@ -319,151 +315,147 @@ namespace IAOMN_API_REST.Controllers
 
             return Request.CreateResponse(HttpStatusCode.OK, (object)result);
         }
-        //[HttpPost]
-        //[Route("GetDataYearByDimension/{dim}/{year}/{month}/{order}")]
-        //public HttpResponseMessage GetDataMonthByDimension(string dim, string year, string month, string order, ConsultaMes data)
-        //{
-            
-        //    string WITH = @"
-        //    WITH 
-        //        SET [Items] AS 
-        //        {
-        //            STRTOSET(@Dimension)
-        //        }
-        //    ";
+        [HttpPost]
+        [Route("GetDataYearByDimension/{dim}/{year}/{month}/{order}")]
+        public HttpResponseMessage GetDataMonthByDimension(string dim, string year, string month, string order, ConsultaMes data)
+        {
 
-        //    string COLUMNS = @"
-        //        NON EMPTY
-        //        {
-        //            STRTOSET(@Year),
-        //            STRTOSET(@Month)
-        //        }
-        //        ON COLUMNS,    
-        //    ";
+            string WITH = @"
+            WITH 
+                SET [Items] AS 
+                {
+                    STRTOSET(@Dimension)
+                }
+            ";
 
-        //    string ROWS = @"
-        //        NON EMPTY
-        //        {
-        //            ORDER(
-        //                [Items],
-        //                [Measures].[Hec Ventas Ventas], " + order +
-        //            @")
-        //        }
-        //        ON ROWS
-        //    ";
+            string COLUMNS = @"
+                NON EMPTY
+                {
+                    STRTOSET(@Year)
+                }
+                ON COLUMNS,    
+            ";
 
-        //    string CUBO_NAME = "[DWH Northwind]";
-        //    string MDX_QUERY = WITH + @"SELECT " + COLUMNS + ROWS + " FROM " + CUBO_NAME;
+            string ROWS = @"
+                NON EMPTY
+                {
+                    ORDER(
+                        [Items],
+                        [Measures].[Hec Ventas Ventas], " + order +
+                    @")
+                }
+                *
+                {
+                    STRTOSET(@Month)
+                }
+                ON ROWS
+            ";
 
-        //    Debug.Write(MDX_QUERY);
+            string CUBO_NAME = "[DWH Northwind]";
+            string MDX_QUERY = WITH + @"SELECT " + COLUMNS + ROWS + " FROM " + CUBO_NAME;
 
-        //    List<string> dimension = new List<string>();
-        //    List<decimal> ventas1 = new List<decimal>();
-        //    List<decimal> ventas2 = new List<decimal>();
-        //    List<decimal> ventas3 = new List<decimal>();
-        //    List<dynamic> lstTabla = new List<dynamic>();
+            Debug.Write(MDX_QUERY);
+            List<string> anio = new List<string>();
+            List<dynamic> lstTabla = new List<dynamic>();
 
-        //    dynamic result = new
-        //    {
-        //        sales = lstTabla
-        //    };
+            string valoresDimension = string.Empty;
+            string valoresYear = string.Empty;
+            string valoresMonth = string.Empty;
+            foreach (var item in data.Dimension)
+            {
+                valoresDimension += "{0}.[" + item + "],";
+            }
+            valoresDimension = valoresDimension.TrimEnd(',');
+            valoresDimension = string.Format(valoresDimension, dim);
+            valoresDimension = @"{" + valoresDimension + "}";
 
-        //    string valoresDimension = string.Empty;
-        //    string valoresYear = string.Empty;
-        //    string valoresMonth = string.Empty;
-        //    foreach (var item in data.Dimension)
-        //    {
-        //        valoresDimension += "{0}.[" + item + "],";
-        //    }
-        //    valoresDimension = valoresDimension.TrimEnd(',');
-        //    valoresDimension = string.Format(valoresDimension, dim);
-        //    valoresDimension = @"{" + valoresDimension + "}";
+            foreach (var item in data.Year)
+            {
+                valoresYear += "{0}.[" + item + "],";
+            }
+            valoresYear = valoresYear.TrimEnd(',');
+            valoresYear = string.Format(valoresYear, year);
+            valoresYear = @"{" + valoresYear + "}";
 
-        //    foreach (var item in data.Year)
-        //    {
-        //        valoresYear += "{0}.[" + item + "],";
-        //    }
-        //    valoresYear = valoresYear.TrimEnd(',');
-        //    valoresYear = string.Format(valoresYear, year);
-        //    valoresYear = @"{" + valoresYear + "},";
+            foreach (var item in data.Month)
+            {
+                valoresMonth += "{0}.[" + item + "],";
+            }
+            valoresMonth = valoresMonth.TrimEnd(',');
+            valoresMonth = string.Format(valoresMonth, month);
+            valoresMonth = @"{" + valoresMonth + "}";
 
-        //    foreach (var item in data.Month)
-        //    {
-        //        valoresMonth += "{0}.[" + item + "],";
-        //    }
-        //    valoresMonth = valoresMonth.TrimEnd(',');
-        //    valoresMonth = string.Format(valoresMonth, month);
-        //    valoresMonth = @"{" + valoresMonth + "}";
+            using (AdomdConnection cnn = new AdomdConnection(ConfigurationManager.ConnectionStrings["CuboNorthwind"].ConnectionString))
+            {
+                cnn.Open();
+                using (AdomdCommand cmd = new AdomdCommand(MDX_QUERY, cnn))
+                {
+                    cmd.Parameters.Add("Dimension", valoresDimension);
+                    cmd.Parameters.Add("Year", valoresYear);
+                    cmd.Parameters.Add("Month", valoresMonth);
+                    using (AdomdDataReader dr = cmd.ExecuteReader(CommandBehavior.CloseConnection))
+                    {
+                        while (dr.Read())
+                        {
+                            switch (dr.FieldCount)
+                            {
+                                case 2:
+                                    dynamic objTabla = new
+                                    {
+                                        name = dr.GetString(0),
+                                        ventas = new decimal[] { getDecimalHelper(dr.GetValue(2)) },
+                                        total = getDecimalHelper(dr.GetValue(2)),
+                                    };
+                                    lstTabla.Add(objTabla);
+                                    break;
+                                case 3:
+                                    dynamic objTabla2 = new
+                                    {
+                                        name = dr.GetString(0),
+                                        ventas = new decimal[] { getDecimalHelper(dr.GetValue(2)), getDecimalHelper(dr.GetValue(3)) },
+                                        total = getDecimalHelper(dr.GetValue(2)) + getDecimalHelper(dr.GetValue(3)),
+                                    };
+                                    lstTabla.Add(objTabla2);
+                                    break;
+                                case 4:
+                                    dynamic objTabla3 = new
+                                    {
+                                        name = dr.GetString(0),
+                                        ventas = new decimal[] { getDecimalHelper(dr.GetValue(2)), getDecimalHelper(dr.GetValue(3)), getDecimalHelper(dr.GetValue(4)) },
+                                        total = getDecimalHelper(dr.GetValue(2)) + getDecimalHelper(dr.GetValue(3)) + getDecimalHelper(dr.GetValue(4))
+                                    };
+                                    lstTabla.Add(objTabla3);
 
-        //    using (AdomdConnection cnn = new AdomdConnection(ConfigurationManager.ConnectionStrings["CuboNorthwind"].ConnectionString))
-        //    {
-        //        cnn.Open();
-        //        using (AdomdCommand cmd = new AdomdCommand(MDX_QUERY, cnn))
-        //        {
-        //            cmd.Parameters.Add("Dimension", valoresDimension);
-        //            cmd.Parameters.Add("Year", valoresYear);
-        //            cmd.Parameters.Add("Month", valoresMonth);
-        //            using (AdomdDataReader dr = cmd.ExecuteReader(CommandBehavior.CloseConnection))
-        //            {
+                                    break;
+                            }
+                        }
+                        switch (dr.FieldCount)
+                        {
+                            case 4:
+                                anio.Add(dr.GetName(1).Substring(22, 4));
+                                anio.Add(dr.GetName(2).Substring(22, 4));
+                                anio.Add(dr.GetName(3).Substring(22, 4));
+                                break;
+                            case 3:
+                                anio.Add(dr.GetName(1).Substring(22, 4));
+                                anio.Add(dr.GetName(2).Substring(22, 4));
+                                break;
+                            case 2:
+                                anio.Add(dr.GetName(1).Substring(22, 4));
+                                break;
+                        }
+                        dr.Close();
+                    }
+                }
+            }
+            dynamic result = new
+            {
+                anio,
+                sales = lstTabla
+            };
 
-        //                while (dr.Read())
-        //                {
-        //                    switch (dr.FieldCount)
-        //                    {
-        //                        case 2:
-        //                            ventas1.Add(getDecimalHelper(dr.GetValue(1)));
-        //                            break;
-        //                        case 3:
-        //                            ventas1.Add(getDecimalHelper(dr.GetValue(1)));
-        //                            ventas2.Add(getDecimalHelper(dr.GetValue(2)));
-        //                            break;
-        //                        case 4:
-        //                            ventas1.Add(getDecimalHelper(dr.GetValue(1)));
-        //                            ventas2.Add(getDecimalHelper(dr.GetValue(2)));
-        //                            ventas3.Add(getDecimalHelper(dr.GetValue(3)));
-        //                            break;
-        //                    }
-        //                    dimension.Add(dr.GetString(0));
-        //                    switch (dr.FieldCount)
-        //                    {
-        //                        case 2:
-        //                            dynamic objTabla = new
-        //                            {
-        //                                name = dr.GetString(0),
-        //                                total = getDecimalHelper(dr.GetValue(1))
-
-        //                            };
-        //                            lstTabla.Add(objTabla);
-        //                            break;
-        //                        case 3:
-        //                            dynamic objTabla2 = new
-        //                            {
-        //                                name = dr.GetString(0),
-        //                                total = getDecimalHelper(dr.GetValue(1)) + getDecimalHelper(dr.GetValue(2))
-        //                            };
-        //                            lstTabla.Add(objTabla2);
-        //                            break;
-        //                        case 4:
-        //                            dynamic objTabla3 = new
-        //                            {
-        //                                name = dr.GetString(0),
-        //                                total = getDecimalHelper(dr.GetValue(1)) + getDecimalHelper(dr.GetValue(2)) + getDecimalHelper(dr.GetValue(3))
-
-        //                            };
-        //                            lstTabla.Add(objTabla3);
-        //                            break;
-        //                    }
-
-
-
-        //                }
-        //                dr.Close();
-        //            }
-        //        }
-        //    }
-
-        //    return Request.CreateResponse(HttpStatusCode.OK, (object)result);
-        //}
+            return Request.CreateResponse(HttpStatusCode.OK, (object)result);
+        }
     }
 
 
